@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Сервис МСК РУ — Автомобили в РУ</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.0/index.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0a0a0a; --bg-2: #121212; --panel: #1c1c1e; --panel-2: #252528;
+    --border: #2f2f33; --text: #e8e8ea; --text-dim: #9a9aa0;
+    --blue: #2f7bff; --blue-hover: #3d86ff; --green: #34c759;
+    --orange: #ff9f0a; --red: #ff3b30; --gray: #6c6c73;
+  }
+  html, body { -webkit-text-size-adjust: 100%; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+  .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 20% 20%, #0f1a2e 0%, #0a0a0a 50%); padding: 20px; }
+  .login-card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 40px; width: 100%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+  .login-logo { text-align: center; margin-bottom: 30px; }
+  .login-logo h1 { font-size: 22px; font-weight: 700; color: var(--blue); letter-spacing: 0.5px; }
+  .login-logo p { color: var(--text-dim); font-size: 13px; margin-top: 6px; }
+  .form-group { margin-bottom: 18px; }
+  .form-group label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; font-weight: 500; }
+  .form-group input, .form-group select, .form-group textarea { width: 100%; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 11px 14px; color: var(--text); font-size: 14px; font-family: inherit; transition: border-color 0.15s; }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--blue); }
+  .form-group textarea { resize: vertical; min-height: 80px; }
+  .btn { background: var(--blue); color: #fff; border: none; border-radius: 8px; padding: 11px 20px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; font-family: inherit; }
+  .btn:hover { background: var(--blue-hover); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-full { width: 100%; }
+  .btn-secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-danger { background: var(--red); }
+  .btn-danger:hover { background: #ff5045; }
+  .btn-success { background: var(--green); }
+  .btn-success:hover { background: #3fd665; }
+  .btn-sm { padding: 7px 12px; font-size: 12px; }
+  .error-msg { background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.3); color: #ff6b60; padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 15px; display: none; }
+  .error-msg.show { display: block; }
+  .app { display: none; }
+  .app.active { display: block; }
+  .header { background: var(--bg-2); border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; gap: 12px; }
+  .header-left { display: flex; align-items: center; gap: 24px; min-width: 0; }
+  .header-logo { font-size: 18px; font-weight: 700; color: var(--blue); letter-spacing: 0.3px; white-space: nowrap; }
+  .header-platform { font-size: 14px; color: var(--text-dim); padding-left: 24px; border-left: 1px solid var(--border); white-space: nowrap; }
+  .header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .user-info { display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: var(--panel); border-radius: 8px; border: 1px solid var(--border); }
+  .user-avatar { width: 32px; height: 32px; background: var(--blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; color: #fff; flex-shrink: 0; }
+  .user-name { font-size: 13px; font-weight: 500; }
+  .user-role { font-size: 11px; color: var(--text-dim); }
+  .sync-status { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gray); flex-shrink: 0; }
+  .sync-status.online { border-color: rgba(52,199,89,0.3); }
+  .sync-status.online .sync-dot { background: var(--green); box-shadow: 0 0 8px var(--green); animation: livePulse 2s infinite; }
+  .sync-status.offline .sync-dot { background: var(--red); }
+  .sync-status.syncing .sync-dot { background: var(--orange); animation: pulse 1s infinite; }
+  @keyframes livePulse { 0%, 100% { box-shadow: 0 0 8px var(--green); } 50% { box-shadow: 0 0 14px var(--green), 0 0 4px var(--green); } }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .live-badge { background: var(--green); color: #000; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 4px; letter-spacing: 0.5px; margin-left: 2px; }
+  .sync-text { font-size: 11px; }
+  .btn-refresh { background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; transition: all 0.15s; font-family: inherit; white-space: nowrap; }
+  .btn-refresh:hover { background: var(--panel-2); border-color: var(--blue); }
+  .btn-logout { background: transparent; color: var(--text-dim); border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; transition: all 0.15s; font-family: inherit; white-space: nowrap; }
+  .btn-logout:hover { color: var(--red); border-color: var(--red); }
+  .main { padding: 24px 28px; max-width: 900px; margin: 0 auto; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 14px; }
+  .tabs { display: flex; gap: 4px; background: var(--panel); padding: 4px; border-radius: 10px; border: 1px solid var(--border); }
+  .tab { padding: 9px 18px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-dim); transition: all 0.15s; border: none; background: transparent; font-family: inherit; display: flex; align-items: center; gap: 8px; white-space: nowrap; position: relative; }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--blue); color: #fff; }
+  .tab-count { background: rgba(255,255,255,0.2); padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; transition: all 0.3s; }
+  .tab:not(.active) .tab-count { background: var(--panel-2); }
+  .tab-count.flash { animation: countFlash 1.5s ease-out; }
+  @keyframes countFlash { 0% { background: var(--green); color: #000; transform: scale(1.3); } 100% { background: var(--panel-2); color: var(--text-dim); transform: scale(1); } }
+  .tab.has-new::after { content: ''; position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 1.5s infinite; }
+  .filters { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .filter-select { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 9px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; font-family: inherit; }
+  .search-bar { margin-bottom: 16px; position: relative; }
+  .search-input-wrap { position: relative; display: flex; align-items: center; }
+  .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 15px; pointer-events: none; }
+  .search-input { width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 11px 44px 11px 42px; color: var(--text); font-size: 14px; font-family: inherit; transition: border-color 0.15s, box-shadow 0.15s; }
+  .search-input::placeholder { color: var(--text-dim); }
+  .search-input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(47,123,255,0.15); }
+  .search-clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: var(--panel-2); border: none; color: var(--text-dim); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; display: none; align-items: center; justify-content: center; }
+  .search-clear:hover { background: var(--border); color: var(--text); }
+  .search-clear.visible { display: flex; }
+  .search-hint { margin-top: 6px; font-size: 11px; color: var(--text-dim); padding-left: 4px; }
+  .search-hint.found { color: var(--green); }
+  .search-hint.not-found { color: var(--orange); }
+  .cards-list { display: flex; flex-direction: column; gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; transition: border-color 0.15s; width: 100%; }
+  .card:hover { border-color: var(--blue); }
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); gap: 10px; }
+  .card-number { font-size: 15px; font-weight: 700; color: var(--blue); }
+  .card-date { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+  .card-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; gap: 10px; }
+  .card-label { color: var(--text-dim); flex-shrink: 0; }
+  .card-value { color: var(--text); font-weight: 500; text-align: right; word-break: break-word; }
+  .card-tz { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-top: 10px; font-size: 12px; color: var(--text); max-height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+  .card-tz-title { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card-footer { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-wrap: wrap; }
+  .card-footer .btn { flex: 1; min-width: 140px; }
+  .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+  .badge-wait { background: rgba(255,159,10,0.15); color: var(--orange); }
+  .badge-work { background: rgba(47,123,255,0.15); color: var(--blue); }
+  .badge-done { background: rgba(52,199,89,0.15); color: var(--green); }
+  .highlight { background: rgba(47,123,255,0.3); color: #fff; padding: 0 2px; border-radius: 3px; }
+  .percent-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+  .percent-cell { background: var(--bg-2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 4px; text-align: center; }
+  .percent-cell-label { font-size: 10px; color: var(--text-dim); margin-bottom: 4px; font-weight: 600; }
+  .percent-cell-value { font-size: 14px; font-weight: 700; color: var(--blue); }
+  .photo-preview { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .photo-preview-item { position: relative; cursor: pointer; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); transition: border-color 0.15s, transform 0.15s; }
+  .photo-preview-item:hover { border-color: var(--blue); transform: scale(1.03); }
+  .photo-preview-item img { display: block; width: 90px; height: 68px; object-fit: cover; }
+  .photo-zoom-hint { position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,0.7); color: #fff; font-size: 10px; padding: 2px 5px; border-radius: 4px; pointer-events: none; }
+  .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 2000; align-items: center; justify-content: center; padding: 20px; }
+  .lightbox.show { display: flex; }
+  .lightbox-img-wrap { position: relative; max-width: 100%; max-height: 100%; display: flex; align-items: center; justify-content: center; }
+  .lightbox-img-wrap img { max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
+  .lightbox-close { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 22px; display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; font-size: 22px; display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .lightbox-nav.prev { left: 20px; }
+  .lightbox-nav.next { right: 20px; }
+  .lightbox-counter { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: #fff; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-dim); }
+  .empty-state-icon { font-size: 48px; margin-bottom: 14px; opacity: 0.4; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; }
+  .modal-header { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .modal-title { font-size: 16px; font-weight: 700; }
+  .modal-close { background: transparent; border: none; color: var(--text-dim); font-size: 22px; cursor: pointer; padding: 0 6px; }
+  .modal-body { padding: 22px; }
+  .modal-footer { padding: 16px 22px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+  .modal-footer .btn { flex: 1; min-width: 120px; }
+  .section-title { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 8px; font-weight: 600; }
+  .section-title:first-child { margin-top: 0; }
+  .photo-upload { border: 2px dashed var(--border); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: border-color 0.15s; }
+  .photo-upload:hover { border-color: var(--blue); }
+  .photo-upload input { display: none; }
+  .upload-preview { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .upload-preview-item { position: relative; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+  .upload-preview-item img { display: block; width: 80px; height: 60px; object-fit: cover; }
+  .upload-preview-item .size-info { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.75); color: var(--green); font-size: 9px; padding: 2px 4px; text-align: center; font-weight: 600; }
+  .upload-preview-item .spinner { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; z-index: 2; }
+  @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+  .upload-preview-item .remove-btn { position: absolute; top: -6px; right: -6px; background: var(--red); color: #fff; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 12px; line-height: 1; z-index: 3; }
+  .compress-info { margin-top: 8px; margin-bottom: 10px; padding: 8px 12px; background: rgba(47,123,255,0.08); border: 1px solid rgba(47,123,255,0.2); border-radius: 6px; font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+  .compress-info .info-icon { color: var(--blue); font-size: 14px; }
+  .upload-progress { margin-top: 10px; padding: 10px 12px; background: rgba(255,159,10,0.08); border: 1px solid rgba(255,159,10,0.25); border-radius: 6px; font-size: 12px; color: var(--orange); display: none; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .upload-progress.show { display: flex; }
+  .upload-progress-bar { flex: 1; height: 4px; background: var(--panel-2); border-radius: 2px; overflow: hidden; min-width: 100px; }
+  .upload-progress-fill { height: 100%; background: var(--orange); border-radius: 2px; transition: width 0.2s; width: 0%; }
+  .upload-progress-text { font-weight: 600; white-space: nowrap; min-width: 40px; text-align: right; }
+  .upload-progress-status { width: 100%; font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 12px 20px; border-radius: 10px; font-size: 13px; z-index: 3000; transition: transform 0.3s; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 10px; max-width: 90%; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--green); }
+  .toast.error { border-color: var(--red); }
+  .notifications-queue { position: fixed; top: 80px; right: 20px; z-index: 2500; display: flex; flex-direction: column; gap: 8px; max-width: 360px; pointer-events: none; }
+  .notif { background: var(--panel); border: 1px solid var(--blue); border-left: 4px solid var(--blue); color: var(--text); padding: 12px 16px; border-radius: 8px; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); animation: notifIn 0.3s ease-out; pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; }
+  .notif.hiding { animation: notifOut 0.3s ease-in forwards; }
+  @keyframes notifIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes notifOut { to { opacity: 0; transform: translateX(40px); } }
+  .notif-icon { font-size: 18px; flex-shrink: 0; line-height: 1; }
+  .notif-body { flex: 1; }
+  .notif-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .notif-text { font-size: 12px; color: var(--text-dim); }
+  @media (max-width: 768px) {
+    .header { padding: 10px 14px; flex-wrap: wrap; gap: 10px; }
+    .header-left { width: 100%; justify-content: space-between; gap: 10px; }
+    .header-logo { font-size: 16px; }
+    .header-platform { padding-left: 12px; font-size: 12px; }
+    .header-right { width: 100%; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+    .user-info { display: none; }
+    .sync-status { font-size: 10px; padding: 5px 8px; }
+    .btn-refresh, .btn-logout { padding: 7px 10px; font-size: 12px; }
+    .main { padding: 14px; }
+    .toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
+    .tabs { width: 100%; overflow-x: auto; scrollbar-width: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab { padding: 8px 12px; font-size: 12px; flex: 1; justify-content: center; }
+    .filters { width: 100%; }
+    .filter-select { flex: 1; }
+    .filters .btn { flex: 1; text-align: center; }
+    .card { padding: 14px; }
+    .card-row { font-size: 12px; flex-wrap: wrap; }
+    .card-value { text-align: left; max-width: 100%; }
+    .card-footer .btn { min-width: 100%; flex-basis: 100%; }
+    .percent-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .percent-cell { padding: 6px 2px; }
+    .percent-cell-label { font-size: 9px; }
+    .percent-cell-value { font-size: 12px; }
+    .photo-preview-item img { width: 70px; height: 52px; }
+    .modal-overlay { padding: 0; align-items: stretch; }
+    .modal { max-height: 100vh; border-radius: 0; border: none; display: flex; flex-direction: column; }
+    .modal-body { flex: 1; overflow-y: auto; padding: 16px; }
+    .modal-header { padding: 14px 16px; }
+    .modal-footer { padding: 12px 16px; }
+    .modal-footer .btn { min-width: 0; }
+    .login-card { padding: 28px 22px; }
+    .login-logo h1 { font-size: 20px; }
+    .lightbox-nav { width: 40px; height: 40px; font-size: 18px; }
+    .lightbox-nav.prev { left: 10px; }
+    .lightbox-nav.next { right: 10px; }
+    .lightbox-close { top: 10px; right: 10px; width: 38px; height: 38px; }
+    .notifications-queue { top: auto; bottom: 80px; right: 10px; left: 10px; max-width: none; }
+  }
+  @media (max-width: 380px) {
+    .header-logo { font-size: 14px; }
+    .header-platform { font-size: 11px; padding-left: 8px; }
+    .tab { font-size: 11px; padding: 7px 8px; }
+    .card { padding: 12px; }
+    .percent-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="login-wrap" id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <h1>Сервис МСК РУ</h1>
+      <p>Автомобили в РУ</p>
+    </div>
+    <div class="error-msg" id="loginError">Неверный логин или пароль</div>
+    <div class="form-group">
+      <label>Логин (фамилия)</label>
+      <input type="text" id="loginInput" placeholder="Например: zhevlakov" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Пароль</label>
+      <input type="password" id="passwordInput" placeholder="Введите пароль" autocomplete="current-password">
+    </div>
+    <button class="btn btn-full" onclick="doLogin()">Войти</button>
+  </div>
+</div>
+
+<div class="app" id="appScreen">
+  <header class="header">
+    <div class="header-left">
+      <div class="header-logo">Сервис МСК РУ</div>
+      <div class="header-platform">Автомобили в РУ</div>
+    </div>
+    <div class="header-right">
+      <div class="sync-status" id="syncStatus">
+        <span class="sync-dot"></span>
+        <span class="sync-text" id="syncStatusText">Подключение...</span>
+      </div>
+      <button class="btn-refresh" onclick="refreshApp()"><span>↻</span> Обновить</button>
+      <div class="user-info">
+        <div class="user-avatar" id="userAvatar">Ж</div>
+        <div>
+          <div class="user-name" id="userName">—</div>
+          <div class="user-role" id="userRole">—</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">Выйти</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="toolbar">
+      <div class="tabs">
+        <button class="tab active" data-tab="waiting" onclick="switchTab('waiting')">Ожидает принятия <span class="tab-count" id="countWaiting">0</span></button>
+        <button class="tab" data-tab="working" onclick="switchTab('working')">В работе <span class="tab-count" id="countWorking">0</span></button>
+        <button class="tab" data-tab="done" onclick="switchTab('done')">Выполнена <span class="tab-count" id="countDone">0</span></button>
+      </div>
+      <div class="filters">
+        <select class="filter-select" id="filterPeriod" onchange="renderCards()">
+          <option value="all">Все заявки</option>
+          <option value="today">Сегодня</option>
+          <option value="week">За 7 дней</option>
+          <option value="month">За месяц</option>
+        </select>
+        <button class="btn" id="btnNewRequest" onclick="openNewRequestModal()">+ Новая заявка</button>
+      </div>
+    </div>
+
+    <div class="search-bar">
+      <div class="search-input-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" id="searchInput" placeholder="Поиск по VIN или № заказ-наряд" oninput="onSearchInput()" autocomplete="off">
+        <button class="search-clear" id="searchClear" onclick="clearSearch()">×</button>
+      </div>
+      <div class="search-hint" id="searchHint"></div>
+    </div>
+
+    <div class="cards-list" id="cardsGrid"></div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="modalNewRequest">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Новая заявка заказчика</div>
+      <button class="modal-close" onclick="closeModal('modalNewRequest')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>№ заказ-наряд</label><input type="text" id="nrNumber" placeholder="Например: ЗН-2026-0142"></div>
+      <div class="form-group"><label>VIN</label><input type="text" id="nrVin" placeholder="17 символов" maxlength="17" style="text-transform:uppercase;"></div>
+      <div class="form-group"><label>Марка / модель</label><input type="text" id="nrModel" placeholder="Например: LADA Vesta"></div>
+      <div class="form-group"><label>ТЗ (техническое задание)</label><textarea id="nrTz" placeholder="Описание работ..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalNewRequest')">Отмена</button>
+      <button class="btn" onclick="createRequest()">Создать заявку</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalTakeWork">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Взять заявку в работу</div>
+      <button class="modal-close" onclick="closeModal('modalTakeWork')">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--text-dim); font-size:13px; margin-bottom:14px;">Вы берёте заявку в работу.</p>
+      <div id="takeWorkInfo" style="background:var(--bg-2); padding:12px; border-radius:8px; font-size:13px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalTakeWork')">Отмена</button>
+      <button class="btn" onclick="confirmTakeWork()">Взять в работу</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalFillWork">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Заполнение заявки</div>
+      <button class="modal-close" onclick="closeModal('modalFillWork')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="section-title">Рекомендации / комментарии</div>
+      <div class="form-group"><textarea id="fillComment" placeholder="Оставьте рекомендации..."></textarea></div>
+      <div class="section-title">Остаток ТМ</div>
+      <div class="percent-grid">
+        <div><div class="form-group" style="margin:0;"><label style="text-align:center;">ПТД, %</label><input type="number" id="fillPTD" min="0" max="100" placeholder="0"></div></div>
+        <div><div class="form-group" style="margin:0;"><label style="text-align:center;">ПТК, %</label><input type="number" id="fillPTK" min="0" max="100" placeholder="0"></div></div>
+        <div><div class="form-group" style="margin:0;"><label style="text-align:center;">ЗТД, %</label><input type="number" id="fillZTD" min="0" max="100" placeholder="0"></div></div>
+        <div><div class="form-group" style="margin:0;"><label style="text-align:center;">ЗТК, %</label><input type="number" id="fillZTK" min="0" max="100" placeholder="0"></div></div>
+      </div>
+      <div class="section-title">Фото автомобиля</div>
+      <div class="compress-info">
+        <span class="info-icon">ℹ</span>
+        <span>Фото сжимаются до миниатюр (320px, качество 25%) и сохраняются в базе</span>
+      </div>
+      <label class="photo-upload" id="photoUploadLabel">
+        <input type="file" id="fillPhoto" accept="image/*" multiple onchange="previewPhotos(event)">
+        <div style="color:var(--text-dim); font-size:13px;">
+          Нажмите для выбора фото<br>
+          <span style="font-size:11px;">JPG, PNG • сильное сжатие</span>
+        </div>
+      </label>
+      <div class="upload-preview" id="photoPreview"></div>
+      <div class="upload-progress" id="uploadProgress">
+        <span id="uploadProgressLabel">Сохранение...</span>
+        <div class="upload-progress-bar"><div class="upload-progress-fill" id="uploadProgressFill"></div></div>
+        <span class="upload-progress-text" id="uploadProgressText">0%</span>
+        <div class="upload-progress-status" id="uploadProgressStatus"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalFillWork')">Отмена</button>
+      <button class="btn btn-success" id="btnMarkDone" onclick="markAsDone()">✓ Выполнена</button>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" onclick="closeLightbox()">×</button>
+  <button class="lightbox-nav prev" onclick="lightboxPrev()">‹</button>
+  <div class="lightbox-img-wrap"><img id="lightboxImg" src="" alt=""></div>
+  <button class="lightbox-nav next" onclick="lightboxNext()">›</button>
+  <div class="lightbox-counter" id="lightboxCounter"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="notifications-queue" id="notificationsQueue"></div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCDF7oubWOAhFKBEmpp4sXP3NqxF-fuGlg",
+  authDomain: "auto-v-ru.firebaseapp.com",
+  projectId: "auto-v-ru",
+  storageBucket: "auto-v-ru.firebasestorage.app",
+  messagingSenderId: "333356880728",
+  appId: "1:333356880728:web:9058a8d7aef46c1dd48b2d"
+};
+
+const USERS = {
+  zarkov:       { pass: '7382', name: 'Жарков Сергей',        role: 'customer',  title: 'Старший мастер-консультант' },
+  krivonosov:   { pass: '4915', name: 'Кривоносов Никита',    role: 'customer',  title: 'Старший мастер-консультант' },
+  volozhaykin:  { pass: '2684', name: 'Воложайкин Валерий',   role: 'customer',  title: 'Мастер-консультант' },
+  bolunov:      { pass: '8527', name: 'Болунов Данил',        role: 'customer',  title: 'Мастер-консультант' },
+  seledkov:     { pass: '3749', name: 'Селедков Андрей',       role: 'mechanic',  title: 'Автомеханик' },
+  fayzullin:    { pass: '5163', name: 'Файзуллин Дамир',       role: 'mechanic',  title: 'Автомеханик' },
+  abdullin:     { pass: '9284', name: 'Абдуллин Азат',         role: 'mechanic',  title: 'Автомеханик' },
+  mogilevtsev:  { pass: '1476', name: 'Могилевцев Владислав',  role: 'mechanic',  title: 'Автомеханик' },
+  stepanov:     { pass: '6839', name: 'Степанов Владислав',    role: 'mechanic',  title: 'Автомеханик' },
+  bulykov:      { pass: '4251', name: 'Булыков Михаил',        role: 'mechanic',  title: 'Автомеханик' },
+  malyugin:     { pass: '7938', name: 'Малюгин Дмитрий',       role: 'mechanic',  title: 'Автомеханик' },
+  zhevlakov:    { pass: '5614', name: 'Жевлаков Павел',        role: 'manager',   title: 'Руководитель' }
+};
+
+const STATUS_NAMES = { waiting: 'Ожидает принятия', working: 'В работе', done: 'Выполнена' };
+
+let currentUser = null;
+let currentTab = 'waiting';
+let currentRequestId = null;
+let tempPhotos = [];
+let requestsCache = [];
+let requestsMap = {};
+let unsubscribe = null;
+let initialLoadDone = false;
+let searchQuery = '';
+
+const IMAGE_COMPRESS = {
+  maxWidth: 320,
+  maxHeight: 320,
+  quality: 0.25,
+  outputFormat: 'image/jpeg'
+};
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' Б';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' МБ';
+}
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const originalSize = file.size;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let { width, height } = img;
+          const { maxWidth, maxHeight, quality, outputFormat } = IMAGE_COMPRESS;
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'low';
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL(outputFormat, quality);
+          const compressedSize = Math.round((dataUrl.length - 'data:image/jpeg;base64,'.length) * 3 / 4);
+          resolve({ dataUrl, originalSize, compressedSize, wasCompressed: true });
+        } catch (err) { reject(err); }
+      };
+      img.onerror = () => reject(new Error('Не удалось загрузить изображение'));
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function previewPhotos(e) {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+  const previewEl = document.getElementById('photoPreview');
+
+  const placeholders = files.map((f, i) => {
+    const uid = 'ph_' + Date.now() + '_' + i;
+    const tempUrl = URL.createObjectURL(f);
+    return { uid, tempUrl, originalSize: f.size };
+  });
+
+  placeholders.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'upload-preview-item';
+    div.id = p.uid;
+    div.style.opacity = '0.5';
+    div.innerHTML = `
+      <img src="${p.tempUrl}" alt="">
+      <div class="spinner"></div>
+      <div class="size-info" style="color:var(--orange);">сжатие...</div>
+    `;
+    previewEl.appendChild(div);
+  });
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const ph = placeholders[i];
+    try {
+      const result = await compressImage(file);
+      tempPhotos.push(result.dataUrl);
+      const el = document.getElementById(ph.uid);
+      if (el) {
+        el.style.opacity = '1';
+        const spinner = el.querySelector('.spinner');
+        if (spinner) spinner.remove();
+        const sizeInfo = el.querySelector('.size-info');
+        if (sizeInfo) {
+          const saved = Math.round((1 - result.compressedSize / result.originalSize) * 100);
+          sizeInfo.style.color = 'var(--green)';
+          sizeInfo.textContent = `${formatBytes(result.compressedSize)} (−${saved}%)`;
+        }
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-btn';
+        removeBtn.textContent = '×';
+        removeBtn.onclick = (ev) => {
+          ev.stopPropagation();
+          ev.preventDefault();
+          removePhotoByUid(ph.uid);
+        };
+        el.appendChild(removeBtn);
+      }
+      URL.revokeObjectURL(ph.tempUrl);
+    } catch (err) {
+      console.error('Ошибка сжатия:', err);
+      const el = document.getElementById(ph.uid);
+      if (el) {
+        el.style.opacity = '1';
+        const spinner = el.querySelector('.spinner');
+        if (spinner) spinner.remove();
+        const sizeInfo = el.querySelector('.size-info');
+        if (sizeInfo) { sizeInfo.style.color = 'var(--red)'; sizeInfo.textContent = 'ошибка'; }
+      }
+      URL.revokeObjectURL(ph.tempUrl);
+    }
+  }
+  e.target.value = '';
+}
+
+function removePhotoByUid(uid) {
+  const el = document.getElementById(uid);
+  if (!el) return;
+  const previewEl = document.getElementById('photoPreview');
+  const items = Array.from(previewEl.querySelectorAll('.upload-preview-item'));
+  const index = items.indexOf(el);
+  if (index >= 0) tempPhotos.splice(index, 1);
+  el.remove();
+}
+
+function removePhoto(i) {
+  tempPhotos.splice(i, 1);
+  renderPhotoPreview();
+}
+
+function renderPhotoPreview() {
+  const el = document.getElementById('photoPreview');
+  el.innerHTML = tempPhotos.map((p, i) => {
+    const isDataUrl = p.startsWith('data:');
+    const size = isDataUrl ? Math.round((p.length - 'data:image/jpeg;base64,'.length) * 3 / 4) : 0;
+    return `
+      <div class="upload-preview-item" style="position:relative;">
+        <img src="${p}" alt="">
+        ${isDataUrl ? `<div class="size-info" style="color:var(--text-dim);">${formatBytes(size)}</div>` : ''}
+        <button class="remove-btn" onclick="removePhoto(${i})">×</button>
+      </div>`;
+  }).join('');
+}
+
+/* ============================================================
+   FIREBASE SERVICE — упрощённая инициализация
+   ============================================================ */
+const FirebaseService = {
+  name: 'Firebase',
+  displayName: 'Облако',
+  db: null,
+  storage: null,
+  initialized: false,
+
+  async init() {
+    console.log('[Init] Начало инициализации Firebase...');
+    
+    if (typeof firebase === 'undefined') {
+      throw new Error('Firebase SDK не загружен');
+    }
+    
+    if (!firebase.apps.length) {
+      console.log('[Init] Инициализация Firebase app...');
+      firebase.initializeApp(firebaseConfig);
+    }
+    
+    this.db = firebase.firestore();
+    console.log('[Init] Firestore инициализирован');
+    
+    // Storage инициализируем лениво — только объект, без запросов
+    try {
+      this.storage = firebase.storage();
+      console.log('[Init] Storage объект создан (проверка при первой загрузке фото)');
+    } catch (err) {
+      console.warn('[Init] Storage недоступен:', err.message);
+      this.storage = null;
+    }
+    
+    // Быстрая проверка Firestore с таймаутом 10 секунд
+    console.log('[Init] Проверка подключения к Firestore...');
+    const checkPromise = this.db.collection('requests').limit(1).get();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Таймаут подключения (10 сек)')), 10000)
+    );
+    
+    await Promise.race([checkPromise, timeoutPromise]);
+    
+    this.initialized = true;
+    console.log('[Init] ✓ Firebase готов к работе');
+    return true;
+  },
+
+  subscribe(callback) {
+    return this.db.collection('requests').onSnapshot(
+      (snapshot) => {
+        const list = [];
+        snapshot.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
+        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        callback(list);
+      },
+      (err) => {
+        console.error('Firestore snapshot error:', err);
+        setSyncStatus('offline', 'Ошибка');
+        showToast('Ошибка синхронизации: ' + err.message, 'error');
+      }
+    );
+  },
+
+  /**
+   * Сохраняет фото напрямую в Firestore (base64).
+   * Фото уже очень маленькие (~5-15 КБ), влезут в документ.
+   * Это самый надёжный способ — не зависит от Storage.
+   */
+  async _savePhotos(requestId, photos, onProgress) {
+    const result = [];
+    const dataUrlPhotos = [];
+    
+    photos.forEach((p, i) => {
+      if (typeof p === 'string' && p.startsWith('data:')) {
+        dataUrlPhotos.push({ dataUrl: p, index: i });
+      } else if (typeof p === 'string' && p.startsWith('http')) {
+        result[i] = p;
+      }
+    });
+
+    console.log(`[Photo] Сохранение ${dataUrlPhotos.length} фото в Firestore`);
+
+    // Сохраняем base64 прямо в Firestore (фото уже маленькие)
+    for (let i = 0; i < dataUrlPhotos.length; i++) {
+      const { dataUrl, index } = dataUrlPhotos[i];
+      result[index] = dataUrl;
+      if (onProgress) {
+        const pct = Math.round(((i + 1) / dataUrlPhotos.length) * 100);
+        onProgress(pct, `Сохранение фото ${i + 1}/${dataUrlPhotos.length}...`);
+      }
+      // Небольшая пауза для обновления UI
+      await new Promise(r => setTimeout(r, 20));
+    }
+
+    return result.filter(Boolean);
+  },
+
+  async create(data) {
+    const photos = data.photos || [];
+    const docRef = await this.db.collection('requests').add({ ...data, photos: [] });
+    const requestId = docRef.id;
+    if (photos.length > 0) {
+      const saved = await this._savePhotos(requestId, photos);
+      await docRef.update({ photos: saved });
+    }
+    return requestId;
+  },
+
+  async update(id, patch, onProgress) {
+    if (patch.photos !== undefined) {
+      const savedPhotos = await this._savePhotos(id, patch.photos || [], onProgress);
+      patch.photos = savedPhotos;
+    }
+    await this.db.collection('requests').doc(id).update(patch);
+  },
+
+  async delete(id) {
+    await this.db.collection('requests').doc(id).delete();
+  }
+};
+
+const DataService = FirebaseService;
+
+function setSyncStatus(state, text) {
+  const el = document.getElementById('syncStatus');
+  const txt = document.getElementById('syncStatusText');
+  el.classList.remove('online', 'offline', 'syncing');
+  if (state) el.classList.add(state);
+  let badge = el.querySelector('.live-badge');
+  if (state === 'online') {
+    txt.textContent = '';
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'live-badge';
+      badge.textContent = 'LIVE';
+      el.appendChild(badge);
+    }
+  } else {
+    if (badge) badge.remove();
+    txt.textContent = text || DataService.displayName;
+  }
+}
+
+let toastTimer = null;
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+function pushNotification(title, text, icon = '🔔') {
+  const queue = document.getElementById('notificationsQueue');
+  const el = document.createElement('div');
+  el.className = 'notif';
+  el.innerHTML = `<div class="notif-icon">${icon}</div><div class="notif-body"><div class="notif-title">${escapeHtml(title)}</div><div class="notif-text">${escapeHtml(text)}</div></div>`;
+  queue.appendChild(el);
+  playNotificationSound();
+  setTimeout(() => { el.classList.add('hiding'); setTimeout(() => el.remove(), 300); }, 5000);
+  while (queue.children.length > 4) queue.firstChild.remove();
+}
+
+function playNotificationSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.25);
+  } catch(e) {}
+}
+
+function detectChanges(oldMap, newList) {
+  if (!initialLoadDone) {
+    const m = {}; newList.forEach(r => m[r.id] = r);
+    requestsMap = m; initialLoadDone = true; return;
+  }
+  const newMap = {}; newList.forEach(r => newMap[r.id] = r);
+  Object.keys(newMap).forEach(id => {
+    if (!oldMap[id]) {
+      const r = newMap[id];
+      const customer = USERS[r.customer];
+      pushNotification('Новая заявка', `${r.nr} • ${r.model} • ${customer ? customer.name : '—'}`, '📝');
+      flashTabCount(r.status);
+    }
+  });
+  Object.keys(newMap).forEach(id => {
+    const oldR = oldMap[id]; const newR = newMap[id];
+    if (oldR && oldR.status !== newR.status) {
+      const mechanic = newR.mechanic ? USERS[newR.mechanic] : null;
+      let text = `${newR.nr} → ${STATUS_NAMES[newR.status]}`;
+      if (newR.status === 'working' && mechanic) text += ` • ${mechanic.name}`;
+      pushNotification('Статус изменён', text, '🔄');
+      flashTabCount(newR.status);
+      if (currentUser && newR.customer === currentUser.login) {
+        if (newR.status === 'working') pushNotification('Ваша заявка взята в работу', `${newR.nr}`, '⚙️');
+        else if (newR.status === 'done') pushNotification('Ваша заявка выполнена', `${newR.nr}`, '✅');
+      }
+    }
+  });
+  Object.keys(oldMap).forEach(id => {
+    if (!newMap[id]) pushNotification('Заявка удалена', oldMap[id].nr, '🗑️');
+  });
+  requestsMap = newMap;
+}
+
+function flashTabCount(status) {
+  const tabEl = document.querySelector(`.tab[data-tab="${status}"]`);
+  if (!tabEl) return;
+  const countEl = tabEl.querySelector('.tab-count');
+  if (countEl) { countEl.classList.remove('flash'); void countEl.offsetWidth; countEl.classList.add('flash'); }
+  if (!tabEl.classList.contains('active')) tabEl.classList.add('has-new');
+}
+
+function doLogin() {
+  const login = document.getElementById('loginInput').value.trim().toLowerCase();
+  const pass = document.getElementById('passwordInput').value;
+  const err = document.getElementById('loginError');
+  if (!login || !pass) { err.textContent = 'Заполните все поля'; err.classList.add('show'); return; }
+  const user = USERS[login];
+  if (!user || user.pass !== pass) { err.textContent = 'Неверный логин или пароль'; err.classList.add('show'); return; }
+  err.classList.remove('show');
+  currentUser = { login, ...user };
+  localStorage.setItem('msk_session', JSON.stringify({ login }));
+  enterApp();
+}
+
+function doLogout() {
+  localStorage.removeItem('msk_session');
+  if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+  currentUser = null; requestsCache = []; requestsMap = {}; initialLoadDone = false;
+  document.getElementById('appScreen').classList.remove('active');
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginInput').value = '';
+  document.getElementById('passwordInput').value = '';
+}
+
+function restoreSession() {
+  const raw = localStorage.getItem('msk_session');
+  if (!raw) return false;
+  try {
+    const { login } = JSON.parse(raw);
+    if (USERS[login]) { currentUser = { login, ...USERS[login] }; return true; }
+  } catch(e) {}
+  return false;
+}
+
+async function enterApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').classList.add('active');
+  document.getElementById('userName').textContent = currentUser.name;
+  document.getElementById('userRole').textContent = currentUser.title;
+  document.getElementById('userAvatar').textContent = currentUser.name.charAt(0);
+  const btn = document.getElementById('btnNewRequest');
+  btn.style.display = (currentUser.role === 'customer' || currentUser.role === 'manager') ? '' : 'none';
+  
+  setSyncStatus('syncing', 'Подключение...');
+  
+  try {
+    await DataService.init();
+    setSyncStatus('online', DataService.displayName);
+    
+    if (unsubscribe) unsubscribe();
+    unsubscribe = DataService.subscribe((list) => {
+      detectChanges(requestsMap, list);
+      requestsCache = list;
+      renderCards();
+    });
+    showToast('Подключено. Синхронизация в реальном времени', 'success');
+  } catch (err) {
+    console.error('[Init] Ошибка:', err);
+    setSyncStatus('offline', 'Ошибка: ' + err.message);
+    showToast('Не удалось подключиться: ' + err.message, 'error');
+  }
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => {
+    const isActive = t.dataset.tab === tab;
+    t.classList.toggle('active', isActive);
+    if (isActive) t.classList.remove('has-new');
+  });
+  renderCards();
+}
+
+function filterByPeriod(list) {
+  const period = document.getElementById('filterPeriod').value;
+  if (period === 'all') return list;
+  const now = Date.now(); const day = 86400000;
+  return list.filter(r => {
+    const age = now - (r.createdAt || 0);
+    if (period === 'today') return age < day;
+    if (period === 'week') return age < day * 7;
+    if (period === 'month') return age < day * 30;
+    return true;
+  });
+}
+
+function filterBySearch(list) {
+  if (!searchQuery) return list;
+  const q = searchQuery.toLowerCase().trim();
+  return list.filter(r => {
+    const nr = (r.nr || '').toLowerCase();
+    const vin = (r.vin || '').toLowerCase();
+    return nr.includes(q) || vin.includes(q);
+  });
+}
+
+function highlightText(text, query) {
+  if (!query || !text) return escapeHtml(text);
+  const escaped = escapeHtml(text);
+  const q = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return escaped.replace(new RegExp(`(${q})`, 'gi'), '<span class="highlight">$1</span>');
+}
+
+let searchDebounce = null;
+function onSearchInput() {
+  const input = document.getElementById('searchInput');
+  const clearBtn = document.getElementById('searchClear');
+  searchQuery = input.value;
+  clearBtn.classList.toggle('visible', searchQuery.length > 0);
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => { renderCards(); updateSearchHint(); }, 150);
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  searchQuery = '';
+  document.getElementById('searchClear').classList.remove('visible');
+  document.getElementById('searchHint').textContent = '';
+  document.getElementById('searchHint').className = 'search-hint';
+  renderCards();
+  document.getElementById('searchInput').focus();
+}
+
+function updateSearchHint() {
+  const hint = document.getElementById('searchHint');
+  if (!searchQuery.trim()) { hint.textContent = ''; hint.className = 'search-hint'; return; }
+  const q = searchQuery.toLowerCase().trim();
+  const found = requestsCache.filter(r => {
+    const nr = (r.nr || '').toLowerCase();
+    const vin = (r.vin || '').toLowerCase();
+    return nr.includes(q) || vin.includes(q);
+  }).length;
+  if (found === 0) { hint.textContent = `Ничего не найдено по запросу «${searchQuery}»`; hint.className = 'search-hint not-found'; }
+  else { hint.textContent = `Найдено заявок: ${found}`; hint.className = 'search-hint found'; }
+}
+
+function renderCards() {
+  const all = requestsCache;
+  const searchedAll = filterBySearch(all);
+  const waiting = filterByPeriod(searchedAll.filter(r => r.status === 'waiting'));
+  const working = filterByPeriod(searchedAll.filter(r => r.status === 'working'));
+  const done = filterByPeriod(searchedAll.filter(r => r.status === 'done'));
+  document.getElementById('countWaiting').textContent = waiting.length;
+  document.getElementById('countWorking').textContent = working.length;
+  document.getElementById('countDone').textContent = done.length;
+  let list = [];
+  if (currentTab === 'waiting') list = waiting;
+  else if (currentTab === 'working') list = working;
+  else list = done;
+  if (currentUser.role === 'mechanic') list = list.filter(r => r.mechanic === currentUser.login || r.status === 'waiting');
+  const grid = document.getElementById('cardsGrid');
+  if (list.length === 0) {
+    const isSearch = searchQuery.trim().length > 0;
+    grid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${isSearch ? '🔍' : '📭'}</div><div>${isSearch ? 'По вашему запросу ничего не найдено' : 'Нет заявок в этом разделе'}</div></div>`;
+    return;
+  }
+  grid.innerHTML = list.map(r => renderCard(r)).join('');
+}
+
+function renderCard(r) {
+  const customer = USERS[r.customer] || { name: '—' };
+  const mechanic = r.mechanic ? USERS[r.mechanic] : null;
+  const dt = new Date(r.createdAt || 0);
+  const dateStr = dt.toLocaleDateString('ru-RU') + ' ' + dt.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+  const statusBadge = { waiting: '<span class="badge badge-wait">Ожидает</span>', working: '<span class="badge badge-work">В работе</span>', done: '<span class="badge badge-done">Выполнена</span>' }[r.status];
+  const nrDisplay = highlightText(r.nr, searchQuery);
+  const vinDisplay = highlightText(r.vin, searchQuery);
+  let actions = '';
+  if (r.status === 'waiting' && (currentUser.role === 'mechanic' || currentUser.role === 'manager')) actions += `<button class="btn btn-sm" onclick="openTakeWorkModal('${r.id}')">Взять в работу</button>`;
+  if (r.status === 'working' && (r.mechanic === currentUser.login || currentUser.role === 'manager')) actions += `<button class="btn btn-sm btn-success" onclick="openFillWorkModal('${r.id}')">Заполнить и выполнить</button>`;
+  if (r.status === 'working' && (r.customer === currentUser.login || currentUser.role === 'manager')) actions += `<button class="btn btn-sm btn-danger" onclick="rollbackRequest('${r.id}','waiting')">↶ Ожидает принятия</button>`;
+  if (r.status === 'done' && (r.customer === currentUser.login || currentUser.role === 'manager')) actions += `<button class="btn btn-sm btn-danger" onclick="rollbackRequest('${r.id}','working')">↶ В работу</button>`;
+  if (currentUser.role === 'manager') actions += `<button class="btn btn-sm btn-danger" onclick="deleteRequest('${r.id}')">🗑 Удалить</button>`;
+  let extra = '';
+  if (r.status === 'working' && mechanic) extra += `<div class="card-row"><span class="card-label">Исполнитель:</span><span class="card-value">${mechanic.name}</span></div>`;
+  if (r.status === 'done') {
+    if (mechanic) extra += `<div class="card-row"><span class="card-label">Исполнитель:</span><span class="card-value">${mechanic.name}</span></div>`;
+    if (r.comment) extra += `<div class="card-tz-title" style="margin-top:10px;">Рекомендации</div><div class="card-tz">${escapeHtml(r.comment)}</div>`;
+    if (r.percents) extra += `<div class="card-tz-title" style="margin-top:10px;">Остаток ТМ</div><div class="percent-grid"><div class="percent-cell"><div class="percent-cell-label">ПТД</div><div class="percent-cell-value">${r.percents.PTD||0}%</div></div><div class="percent-cell"><div class="percent-cell-label">ПТК</div><div class="percent-cell-value">${r.percents.PTK||0}%</div></div><div class="percent-cell"><div class="percent-cell-label">ЗТД</div><div class="percent-cell-value">${r.percents.ZTD||0}%</div></div><div class="percent-cell"><div class="percent-cell-label">ЗТК</div><div class="percent-cell-value">${r.percents.ZTK||0}%</div></div></div>`;
+    if (r.photos && r.photos.length) extra += `<div class="card-tz-title" style="margin-top:10px;">Фото автомобиля</div><div class="photo-preview">${r.photos.map((p, i) => `<div class="photo-preview-item" onclick="openLightbox('${r.id}', ${i})"><img src="${p}" alt="фото" loading="lazy"><span class="photo-zoom-hint">🔍</span></div>`).join('')}</div>`;
+  }
+  return `<div class="card"><div class="card-header"><div><div class="card-number">${nrDisplay}</div><div style="margin-top:4px;">${statusBadge}</div></div><div class="card-date">${dateStr}</div></div><div class="card-row"><span class="card-label">VIN:</span><span class="card-value" style="font-family:monospace;">${vinDisplay}</span></div><div class="card-row"><span class="card-label">Марка/модель:</span><span class="card-value">${escapeHtml(r.model)}</span></div><div class="card-row"><span class="card-label">Заказчик:</span><span class="card-value">${customer.name}</span></div>${extra}<div class="card-tz-title" style="margin-top:10px;">ТЗ</div><div class="card-tz">${escapeHtml(r.tz)}</div>${actions ? `<div class="card-footer">${actions}</div>` : ''}</div>`;
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+let lightboxPhotos = [];
+let lightboxIndex = 0;
+
+function openLightbox(requestId, index) {
+  const r = requestsCache.find(x => x.id === requestId);
+  if (!r || !r.photos || !r.photos.length) return;
+  lightboxPhotos = r.photos; lightboxIndex = index;
+  updateLightbox();
+  document.getElementById('lightbox').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+function updateLightbox() {
+  document.getElementById('lightboxImg').src = lightboxPhotos[lightboxIndex];
+  document.getElementById('lightboxCounter').textContent = `${lightboxIndex + 1} / ${lightboxPhotos.length}`;
+  document.querySelector('.lightbox-nav.prev').style.display = lightboxPhotos.length > 1 ? 'flex' : 'none';
+  document.querySelector('.lightbox-nav.next').style.display = lightboxPhotos.length > 1 ? 'flex' : 'none';
+}
+
+function lightboxPrev() { lightboxIndex = (lightboxIndex - 1 + lightboxPhotos.length) % lightboxPhotos.length; updateLightbox(); }
+function lightboxNext() { lightboxIndex = (lightboxIndex + 1) % lightboxPhotos.length; updateLightbox(); }
+
+document.addEventListener('keydown', (e) => {
+  const lb = document.getElementById('lightbox');
+  if (!lb.classList.contains('show')) return;
+  if (e.key === 'Escape') closeLightbox();
+  else if (e.key === 'ArrowLeft') lightboxPrev();
+  else if (e.key === 'ArrowRight') lightboxNext();
+});
+
+document.getElementById('lightbox').addEventListener('click', (e) => {
+  if (e.target.id === 'lightbox') closeLightbox();
+});
+
+function openNewRequestModal() {
+  document.getElementById('nrNumber').value = '';
+  document.getElementById('nrVin').value = '';
+  document.getElementById('nrModel').value = '';
+  document.getElementById('nrTz').value = '';
+  openModal('modalNewRequest');
+}
+
+async function createRequest() {
+  const nr = document.getElementById('nrNumber').value.trim();
+  const vin = document.getElementById('nrVin').value.trim().toUpperCase();
+  const model = document.getElementById('nrModel').value.trim();
+  const tz = document.getElementById('nrTz').value.trim();
+  if (!nr || !vin || !model || !tz) { alert('Заполните все поля'); return; }
+  const data = { nr, vin, model, tz, status: 'waiting', customer: currentUser.login, createdAt: Date.now(), mechanic: null, comment: null, percents: null, photos: [] };
+  try {
+    setSyncStatus('syncing', 'Сохранение...');
+    await DataService.create(data);
+    closeModal('modalNewRequest');
+    setSyncStatus('online', DataService.displayName);
+    showToast('Заявка создана', 'success');
+  } catch (err) {
+    console.error(err);
+    setSyncStatus('online', DataService.displayName);
+    showToast('Ошибка сохранения: ' + err.message, 'error');
+  }
+}
+
+function openTakeWorkModal(id) {
+  currentRequestId = id;
+  const r = requestsCache.find(x => x.id === id);
+  document.getElementById('takeWorkInfo').innerHTML = `<div><strong>№:</strong> ${escapeHtml(r.nr)}</div><div><strong>VIN:</strong> ${escapeHtml(r.vin)}</div><div><strong>Модель:</strong> ${escapeHtml(r.model)}</div>`;
+  openModal('modalTakeWork');
+}
+
+async function confirmTakeWork() {
+  const r = requestsCache.find(x => x.id === currentRequestId);
+  if (!r) return;
+  try {
+    setSyncStatus('syncing', 'Обновление...');
+    await DataService.update(r.id, { status: 'working', mechanic: currentUser.login });
+    closeModal('modalTakeWork');
+    switchTab('working');
+    setSyncStatus('online', DataService.displayName);
+    showToast('Заявка взята в работу', 'success');
+  } catch (err) {
+    console.error(err);
+    setSyncStatus('online', DataService.displayName);
+    showToast('Ошибка: ' + err.message, 'error');
+  }
+}
+
+function openFillWorkModal(id) {
+  currentRequestId = id;
+  const r = requestsCache.find(x => x.id === id);
+  document.getElementById('fillComment').value = r.comment || '';
+  document.getElementById('fillPTD').value = r.percents?.PTD || '';
+  document.getElementById('fillPTK').value = r.percents?.PTK || '';
+  document.getElementById('fillZTD').value = r.percents?.ZTD || '';
+  document.getElementById('fillZTK').value = r.percents?.ZTK || '';
+  tempPhotos = r.photos ? [...r.photos] : [];
+  renderPhotoPreview();
+  hideUploadProgress();
+  openModal('modalFillWork');
+}
+
+function showUploadProgress(percent, status) {
+  const el = document.getElementById('uploadProgress');
+  const fill = document.getElementById('uploadProgressFill');
+  const text = document.getElementById('uploadProgressText');
+  const statusEl = document.getElementById('uploadProgressStatus');
+  el.classList.add('show');
+  fill.style.width = percent + '%';
+  text.textContent = percent + '%';
+  if (status) statusEl.textContent = status;
+}
+
+function hideUploadProgress() {
+  const el = document.getElementById('uploadProgress');
+  const fill = document.getElementById('uploadProgressFill');
+  const text = document.getElementById('uploadProgressText');
+  const statusEl = document.getElementById('uploadProgressStatus');
+  el.classList.remove('show');
+  fill.style.width = '0%';
+  text.textContent = '0%';
+  statusEl.textContent = '';
+}
+
+async function markAsDone() {
+  const comment = document.getElementById('fillComment').value.trim();
+  const ptd = document.getElementById('fillPTD').value;
+  const ptk = document.getElementById('fillPTK').value;
+  const ztd = document.getElementById('fillZTD').value;
+  const ztk = document.getElementById('fillZTK').value;
+  if (!comment) { alert('Заполните рекомендации/комментарии'); return; }
+  if (ptd === '' || ptk === '' || ztd === '' || ztk === '') { alert('Заполните все 4 поля остатка ТМ'); return; }
+  const r = requestsCache.find(x => x.id === currentRequestId);
+  if (!r) return;
+  const btn = document.getElementById('btnMarkDone');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Сохранение...';
+  try {
+    setSyncStatus('syncing', 'Сохранение...');
+    const newPhotos = tempPhotos.filter(p => typeof p === 'string' && p.startsWith('data:'));
+    if (newPhotos.length > 0) showUploadProgress(0, 'Подготовка фото...');
+    await DataService.update(r.id, {
+      status: 'done',
+      comment: comment,
+      percents: { PTD: Math.max(0, Math.min(100, +ptd)), PTK: Math.max(0, Math.min(100, +ptk)), ZTD: Math.max(0, Math.min(100, +ztd)), ZTK: Math.max(0, Math.min(100, +ztk)) },
+      photos: tempPhotos
+    }, (percent, status) => {
+      showUploadProgress(percent, status);
+    });
+    hideUploadProgress();
+    closeModal('modalFillWork');
+    switchTab('done');
+    setSyncStatus('online', DataService.displayName);
+    showToast('Заявка выполнена', 'success');
+  } catch (err) {
+    console.error('Ошибка markAsDone:', err);
+    hideUploadProgress();
+    setSyncStatus('online', DataService.displayName);
+    showToast('Ошибка: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+async function rollbackRequest(id, toStatus) {
+  const msg = toStatus === 'working' ? 'Откатить заявку в раздел «В работе»?' : 'Откатить заявку в раздел «Ожидает принятия»?';
+  if (!confirm(msg)) return;
+  const r = requestsCache.find(x => x.id === id);
+  if (!r) return;
+  try {
+    setSyncStatus('syncing', 'Обновление...');
+    const patch = { status: toStatus };
+    if (toStatus === 'waiting') { patch.mechanic = null; patch.comment = null; patch.percents = null; patch.photos = []; }
+    await DataService.update(r.id, patch);
+    setSyncStatus('online', DataService.displayName);
+    showToast('Заявка откатана', 'success');
+  } catch (err) {
+    console.error(err);
+    setSyncStatus('online', DataService.displayName);
+    showToast('Ошибка: ' + err.message, 'error');
+  }
+}
+
+async function deleteRequest(id) {
+  if (!confirm('Удалить эту заявку? Это действие нельзя отменить.')) return;
+  const r = requestsCache.find(x => x.id === id);
+  if (!r) return;
+  try {
+    setSyncStatus('syncing', 'Удаление...');
+    await DataService.delete(id);
+    setSyncStatus('online', DataService.displayName);
+    showToast('Заявка удалена', 'success');
+  } catch (err) {
+    console.error(err);
+    setSyncStatus('online', DataService.displayName);
+    showToast('Ошибка удаления: ' + err.message, 'error');
+  }
+}
+
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+function refreshApp() {
+  const btn = document.querySelector('.btn-refresh');
+  btn.style.transform = 'rotate(360deg)';
+  btn.style.transition = 'transform 0.5s';
+  setTimeout(() => { btn.style.transform = ''; }, 500);
+  showToast('Данные синхронизированы автоматически', 'success');
+}
+
+document.getElementById('passwordInput').addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('loginInput').addEventListener('keypress', e => { if (e.key === 'Enter') document.getElementById('passwordInput').focus(); });
+document.getElementById('searchInput').addEventListener('keypress', e => { if (e.key === 'Escape') clearSearch(); });
+
+(async () => {
+  setSyncStatus('', DataService.displayName);
+  if (restoreSession()) await enterApp();
+})();
+</script>
+</body>
+</html>
